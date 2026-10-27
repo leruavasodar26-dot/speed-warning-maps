@@ -1,0 +1,43 @@
+{
+ "v": 1,
+ "updated": "2026-10-27",
+ "source": "OpenStreetMap contributors (ODbL), Geofabrik Australia extract",
+ "files": [
+  {
+   "id": "fnq",
+   "name": "Far North Queensland",
+   "area": "Cooktown – Cairns – Tablelands – Chillagoe – Innisfail – Tully – Cardwell",
+   "date": "2026-10-27",
+   "bytes": 4421805,
+   "unpacked": 13990621,
+   "sha256": "d7ee2f9ddb9f490a966c742484e9ce013e0d2c1f176200bce7ff10aafe120df6",
+   "url": "https://github.com/leruavasodar26-dot/speed-warning-maps/releases/download/maps-2026-10-27/fnq.zip",
+   "squares": 15300,
+   "squaresWithRoads": 2768,
+   "bbox": [
+    -18.36,
+    144.4,
+    -15.3,
+    146.4
+   ]
+  },
+  {
+   "id": "townsville-rockhampton",
+   "name": "Townsville – Rockhampton",
+   "area": "Bruce Hwy from Cardwell via Ingham, Townsville, Bowen, Mackay and Sarina to Rockhampton (about 12 km each side, plus Townsville, Mackay and Rockhampton)",
+   "date": "2026-10-27",
+   "bytes": 3387702,
+   "unpacked": 10959158,
+   "sha256": "fd6f5100e0dc0a23852d893445408340bc9bca1fd0fbe05e2b2cf3552f48f022",
+   "url": "https://github.com/leruavasodar26-dot/speed-warning-maps/releases/download/maps-2026-10-27/townsville-rockhampton.zip",
+   "squares": 5326,
+   "squaresWithRoads": 2556,
+   "bbox": [
+    -23.56,
+    145.82,
+    -18.08,
+    150.66
+   ]
+  }
+ ]
+}
