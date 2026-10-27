@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Speed Warning map files: cut roads + speed limits + schools from the Geofabrik Australia extract
 into 2 km squares (same format as the app's TileCodec v2), one zip per area, plus index.json.
+Each road: [id, highway, limit, name, ref, school 0/1, [lat,lon,...]] and, since Speed Warning 1.6, a trailing 1 = roundabout
+(OSM junction=roundabout or junction=circular). Older apps ignore the extra item; 1.6 treats a missing one as "not a roundabout".
 Usage: build_maps.py <roads.pbf> <outdir> <date YYYY-MM-DD> <base_url>"""
 import sys, os, json, math, re, zipfile, hashlib, collections
 import osmium
@@ -43,7 +45,8 @@ class H(osmium.SimpleHandler):
         cond = (t.get("maxspeed:conditional") or "").lower()
         school = ("school" in cond or "40 @" in cond or "school_zone" in t or t.get("hazard") == "school_zone"
                   or "school" in (t.get("zone:maxspeed") or "").lower())
-        self.ways.append((w.id, hw, parse_limit(ms), t.get("name"), t.get("ref"), 1 if school else 0, pts))
+        rb = (t.get("junction") or "").strip().lower() in ("roundabout", "circular")
+        self.ways.append((w.id, hw, parse_limit(ms), t.get("name"), t.get("ref"), 1 if school else 0, pts, 1 if rb else 0))
     def area(self, a):
         if a.tags.get("amenity") != "school": return
         rings = []
@@ -53,7 +56,7 @@ class H(osmium.SimpleHandler):
 
 def bruce_points(ways, s_lat, n_lat):
     out = []
-    for (_id, hw, _l, name, ref, _s, pts) in ways:
+    for (_id, hw, _l, name, ref, _s, pts, _rb) in ways:
         refs = [r.strip().upper().replace(" ", "") for r in (ref or "").split(";")]
         if (name == "Bruce Highway" or "A1" in refs) and hw in ("motorway", "trunk", "primary", "motorway_link", "trunk_link"):
             for p in pts:
@@ -104,12 +107,13 @@ def build_file(fid, ways, schools, cover):
                 hit |= around(p[0], p[1], MARGIN_M); hit |= around(p[0], p[1], 200.0)
         for k in hit:
             if k in cover: ts[k].append(sc)
+    rbs = {w[0] for k in tw for w in tw[k].values() if w[7]}
     tiles = {}
     for k in set(tw) | set(ts):
-        wsj = [[w[0], w[1], w[2], w[3], w[4], w[5], [c for p in w[6] for c in p]] for w in tw[k].values()]
+        wsj = [[w[0], w[1], w[2], w[3], w[4], w[5], [c for p in w[6] for c in p]] + ([1] if w[7] else []) for w in tw[k].values()]
         ssj = [[[c for p in r for c in p] for r in sc] for sc in ts[k]]
         tiles[k] = json.dumps({"v": 2, "ways": wsj, "schools": ssj}, separators=(",", ":"), ensure_ascii=False)
-    return tiles
+    return tiles, len(rbs)
 
 def runs(cover):
     rows = collections.defaultdict(list)
@@ -127,7 +131,7 @@ def main():
     pbf, outdir, date, base = sys.argv[1:5]
     os.makedirs(outdir, exist_ok=True)
     h = H(); h.apply_file(pbf, locations=True)
-    print("ways", len(h.ways), "schools", len(h.schools), flush=True)
+    print("ways", len(h.ways), "roundabout pieces", sum(1 for w in h.ways if w[7]), "schools", len(h.schools), flush=True)
     files = []
     # File 1: Far North Queensland – Cooktown (N) to Cardwell (S), west to Chillagoe
     fnq = cover_box(-18.36, 144.40, -15.30, 146.40)
@@ -141,7 +145,7 @@ def main():
     specs = [("fnq", "Far North Queensland", "Cooktown – Cairns – Tablelands – Chillagoe – Innisfail – Tully – Cardwell", fnq),
              ("townsville-rockhampton", "Townsville – Rockhampton", "Bruce Hwy from Cardwell via Ingham, Townsville, Bowen, Mackay and Sarina to Rockhampton (about 12 km each side, plus Townsville, Mackay and Rockhampton)", tr)]
     for fid, name, area, cover in specs:
-        tiles = build_file(fid, h.ways, h.schools, cover)
+        tiles, n_rb = build_file(fid, h.ways, h.schools, cover)
         ys = [k[0] for k in cover]; xs = [k[1] for k in cover]
         bbox = [r6(min(ys) * SIZE), r6(min(xs) * SIZE), r6((max(ys) + 1) * SIZE), r6((max(xs) + 1) * SIZE)]
         meta = {"v": 1, "id": fid, "name": name, "area": area, "date": date, "bbox": bbox, "cover": runs(cover)}
@@ -154,8 +158,8 @@ def main():
         raw = sum(len(b.encode()) for b in tiles.values())
         files.append({"id": fid, "name": name, "area": area, "date": date, "bytes": len(data), "unpacked": raw,
                       "sha256": hashlib.sha256(data).hexdigest(), "url": f"{base}/{fid}.zip",
-                      "squares": len(cover), "squaresWithRoads": len(tiles), "bbox": bbox})
-        print(fid, "squares", len(cover), "with roads", len(tiles), "zip", len(data), "unpacked", raw, flush=True)
+                      "squares": len(cover), "squaresWithRoads": len(tiles), "roundabouts": n_rb, "bbox": bbox})
+        print(fid, "squares", len(cover), "with roads", len(tiles), "roundabout pieces", n_rb, "zip", len(data), "unpacked", raw, flush=True)
     idx = {"v": 1, "updated": date, "source": "OpenStreetMap contributors (ODbL), Geofabrik Australia extract", "files": files}
     json.dump(idx, open(os.path.join(outdir, "index.json"), "w"), indent=1, ensure_ascii=False)
 
